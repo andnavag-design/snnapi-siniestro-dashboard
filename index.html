@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snnapi Siniestros — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --midnight-navy: #0D1B2A;
+    --royal-purple: #833AE0;
+    --magenta-pulse: #CB6CE6;
+    --slate-gray: #4A4E69;
+    --cloud: #F5F6F8;
+    --white: #FFFFFF;
+    --success: #22C55E;
+    --warning: #F59E0B;
+    --error: #EF4444;
+    --border: #E2E8F0;
+  }
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body { font-family:'Inter',sans-serif; background:#E9EAEE; color: var(--midnight-navy); }
+
+  .app-shell {
+    display: flex; min-height: 100vh; background: var(--cloud);
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 220px; background: var(--midnight-navy); color:white; flex-shrink:0;
+    display:flex; flex-direction:column; padding: 20px 14px;
+  }
+  .sidebar .brand { display:flex; align-items:center; gap:8px; padding: 4px 8px 20px 8px; }
+  .sidebar .brand img { width:26px; height:26px; border-radius:6px; }
+  .sidebar .brand span { font-family:'Poppins',sans-serif; font-weight:600; font-size:13.5px; }
+  .nav-item {
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:9px;
+    font-size:13px; font-weight:500; color:#B9C2CF; cursor:pointer; margin-bottom:2px;
+  }
+  .nav-item svg { width:17px; height:17px; flex-shrink:0; }
+  .nav-item.active { background: rgba(255,255,255,0.08); color:white; }
+  .nav-count { margin-left:auto; background: rgba(255,255,255,0.12); border-radius:20px; font-size:10.5px; padding:1px 7px; }
+  .sidebar-footer { margin-top:auto; display:flex; align-items:center; gap:10px; padding:12px 8px; border-top:1px solid rgba(255,255,255,0.1); }
+  .avatar-sm { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,var(--royal-purple),var(--magenta-pulse)); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
+  .sidebar-footer .who b { display:block; font-size:12px; }
+  .sidebar-footer .who span { font-size:10.5px; color:#9CA9BC; }
+
+  /* MAIN */
+  .main { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .topbar {
+    height:60px; background:white; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; padding: 0 24px; gap:16px; flex-shrink:0;
+  }
+  .hamburger { display:none; width:32px; height:32px; border-radius:8px; border:1px solid var(--border); align-items:center; justify-content:center; cursor:pointer; background:white; flex-shrink:0; }
+  .topbar h1 { font-family:'Poppins',sans-serif; font-size:16px; font-weight:600; }
+  .search-box {
+    margin-left:auto; display:flex; align-items:center; gap:8px; background:var(--cloud);
+    border:1px solid var(--border); border-radius:9px; padding:8px 12px; width:260px;
+  }
+  .search-box svg { width:15px; height:15px; color:var(--slate-gray); flex-shrink:0; }
+  .search-box input { border:none; background:transparent; font-size:12.5px; outline:none; width:100%; }
+  .deadline-pill { display:flex; align-items:center; gap:6px; background:#FFF7ED; color:#92400E; font-size:11.5px; font-weight:600; padding:6px 12px; border-radius:20px; }
+  .deadline-pill svg { width:14px; height:14px; }
+
+  .content { flex:1; padding: 22px 26px 40px 26px; overflow-y:auto; }
+  .view { display:none; }
+  .view.active { display:block; }
+
+  /* KPI cards */
+  .kpi-row { display:grid; grid-template-columns: repeat(4,1fr); gap:14px; margin-bottom:20px; }
+  .kpi-card { background:white; border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .kpi-card .num { font-family:'Poppins',sans-serif; font-weight:700; font-size:24px; color:var(--midnight-navy); }
+  .kpi-card .lbl { font-size:11.5px; color:var(--slate-gray); margin-top:2px; }
+
+  /* Filters */
+  .filters { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center; }
+  .filter-chip { padding:7px 14px; border-radius:20px; border:1px solid var(--border); background:white; font-size:12px; font-weight:600; color:var(--slate-gray); cursor:pointer; }
+  .filter-chip.active { background: var(--royal-purple); border-color:var(--royal-purple); color:white; }
+
+  /* Table */
+  .table-card { background:white; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--slate-gray); padding:12px 16px; border-bottom:1px solid var(--border); background:#FAFBFC; }
+  td { padding:13px 16px; font-size:13px; border-bottom:1px solid var(--border); color:var(--midnight-navy); }
+  tr:last-child td { border-bottom:none; }
+  tr.row-click { cursor:pointer; }
+  tr.row-click:hover { background:#FAFAFF; }
+  .cell-sub { font-size:11px; color:var(--slate-gray); margin-top:2px; }
+
+  .badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; padding:4px 10px; border-radius:20px; }
+  .badge::before { content:''; width:6px; height:6px; border-radius:50%; }
+  .badge.review { background:#EEF2FF; color:var(--royal-purple); } .badge.review::before { background:var(--royal-purple); }
+  .badge.taller { background:#FFF7ED; color:#92400E; } .badge.taller::before { background:var(--warning); }
+  .badge.closed { background:#F0FDF4; color:#166534; } .badge.closed::before { background:var(--success); }
+  .badge.wait { background:#FEF2F2; color:#991B1B; } .badge.wait::before { background:var(--error); }
+
+  .deadline-flag { font-size:10.5px; font-weight:600; color: var(--error); }
+
+  /* DETAIL VIEW */
+  .detail-header { display:flex; align-items:center; gap:14px; margin-bottom:18px; flex-wrap:wrap; }
+  .back-btn2 { width:34px; height:34px; border-radius:9px; border:1px solid var(--border); background:white; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
+  .detail-header h2 { font-family:'Poppins',sans-serif; font-size:18px; font-weight:600; }
+  .detail-header .sub { font-size:12px; color:var(--slate-gray); margin-top:2px; }
+
+  .detail-grid { display:grid; grid-template-columns: 1fr 360px; gap:18px; align-items:start; }
+
+  .card { background:white; border:1px solid var(--border); border-radius:12px; padding:18px; margin-bottom:16px; }
+  .card-title { font-family:'Poppins',sans-serif; font-weight:600; font-size:14px; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; }
+
+  .tabs { display:flex; gap:4px; background:var(--cloud); border-radius:10px; padding:4px; margin-bottom:16px; }
+  .tab-btn { flex:1; text-align:center; padding:9px; font-size:12.5px; font-weight:600; color:var(--slate-gray); border-radius:8px; cursor:pointer; }
+  .tab-btn.active { background:white; color:var(--midnight-navy); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .tab-pane { display:none; }
+  .tab-pane.active { display:block; }
+
+  .info-grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px 20px; }
+  .info-item .k { font-size:11px; color:var(--slate-gray); margin-bottom:2px; }
+  .info-item .v { font-size:13px; font-weight:600; color:var(--midnight-navy); }
+  .desc-box { grid-column: 1/-1; background:var(--cloud); border-radius:9px; padding:12px; font-size:12.5px; color:var(--slate-gray); line-height:1.5; margin-top:4px; }
+
+  .gallery-group { margin-bottom:16px; }
+  .gallery-group .gt { font-size:12px; font-weight:600; margin-bottom:8px; color:var(--midnight-navy); }
+  .gallery { display:grid; grid-template-columns: repeat(4,1fr); gap:8px; }
+  .gallery img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; cursor:pointer; }
+  .doc-chip { display:flex; align-items:center; gap:8px; background:var(--cloud); border-radius:9px; padding:10px 12px; font-size:12px; font-weight:600; margin-bottom:8px; }
+  .doc-chip svg { width:16px; height:16px; color:var(--slate-gray); flex-shrink:0; }
+
+  /* AI report */
+  .confidence-bar { height:6px; background:var(--border); border-radius:6px; overflow:hidden; margin-top:4px; }
+  .confidence-bar .fill { height:100%; background: linear-gradient(90deg, var(--royal-purple), var(--magenta-pulse)); }
+  .part-item { border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:10px; }
+  .part-item.excluded { opacity:0.45; }
+  .part-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .part-name { font-size:13px; font-weight:600; }
+  .part-conf { font-size:10.5px; color:var(--slate-gray); }
+  .part-toggle { display:flex; gap:6px; }
+  .part-toggle button { width:28px; height:28px; border-radius:7px; border:1px solid var(--border); background:white; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .part-toggle button.on-include { background:#F0FDF4; border-color:#BBF7D0; color:#166534; }
+  .part-toggle button.on-exclude { background:#FEF2F2; border-color:#FECACA; color:#991B1B; }
+  .part-toggle svg { width:14px; height:14px; }
+  .part-src { font-size:10px; color:var(--slate-gray); margin-top:6px; }
+  .part-src.manual { color: var(--royal-purple); font-weight:600; }
+  .add-part-btn { width:100%; border:1.5px dashed var(--border); background:none; border-radius:10px; padding:10px; font-size:12.5px; font-weight:600; color:var(--slate-gray); cursor:pointer; }
+
+  .ai-summary { background: linear-gradient(135deg, var(--midnight-navy), #1B2F45); color:white; border-radius:12px; padding:16px; margin-bottom:16px; }
+  .ai-summary .lbl { font-size:10.5px; color:#9CA9BC; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+  .ai-summary .big { font-family:'Poppins',sans-serif; font-size:22px; font-weight:700; }
+  .ai-summary .note { font-size:11.5px; color:#B9C2CF; margin-top:6px; line-height:1.4; }
+
+  /* Taller tab */
+  .select-input { width:100%; border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:13px; background:white; margin-bottom:12px; }
+
+  .action-bar {
+    display:flex; gap:10px; padding:16px 18px; background:white; border:1px solid var(--border); border-radius:12px; flex-wrap:wrap;
+  }
+  .btn { padding:11px 18px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; border:none; display:flex; align-items:center; gap:6px; }
+  .btn-ghost { background:white; border:1px solid var(--border); color:var(--midnight-navy); }
+  .btn-warn { background:#FFF7ED; border:1px solid #FDE7C7; color:#92400E; }
+  .btn-primary2 { background: linear-gradient(135deg, var(--royal-purple), var(--magenta-pulse)); color:white; margin-left:auto; }
+
+  .timeline-mini { font-size:12px; color:var(--slate-gray); }
+  .tm-item { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); }
+  .tm-item:last-child { border-bottom:none; }
+  .tm-dot { width:8px; height:8px; border-radius:50%; background:var(--success); margin-top:5px; flex-shrink:0; }
+  .tm-item.pending .tm-dot { background:var(--border); }
+  .tm-item.pending .tm-title { color:var(--slate-gray); }
+  .tm-title { font-weight:600; color:var(--midnight-navy); font-size:12.5px; }
+  .tm-date { font-size:10.5px; color:var(--slate-gray); }
+
+  @media (max-width: 980px) {
+    .detail-grid { grid-template-columns: 1fr; }
+    .kpi-row { grid-template-columns: repeat(2,1fr); }
+    .top-strip { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 768px) {
+    .sidebar { position:fixed; left:-240px; top:0; bottom:0; z-index:50; transition:left .2s ease; }
+    .sidebar.open { left:0; }
+    .hamburger { display:flex; }
+    .search-box { display:none; }
+    .kpi-row { grid-template-columns: repeat(2,1fr); }
+    .top-strip { grid-template-columns: 1fr; }
+    table thead { display:none; }
+    table, tbody, tr, td { display:block; width:100%; }
+    tr { border-bottom:1px solid var(--border); padding:12px 16px; }
+    td { border:none; padding:3px 0; }
+    .content { padding:16px; }
+    .gallery, .photo-badge-grid { grid-template-columns: repeat(3,1fr); }
+    .action-bar .btn-primary2 { margin-left:0; width:100%; order:-1; }
+    .action-bar { flex-direction:column; }
+  }
+  .overlay { display:none; position:fixed; inset:0; background:rgba(13,27,42,.4); z-index:40; }
+  .overlay.show { display:block; }
+
+  /* Top info strip */
+  .top-strip { display:grid; grid-template-columns: 1fr 1fr 1.3fr auto; gap:14px; margin-bottom:16px; }
+  .strip-card { background:white; border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+  .strip-card .st-label { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--slate-gray); font-weight:600; margin-bottom:8px; }
+  .strip-card .st-label svg { width:14px; height:14px; }
+  .strip-card .st-main { font-size:14px; font-weight:600; color:var(--midnight-navy); }
+  .strip-card .st-sub { font-size:11.5px; color:var(--slate-gray); margin-top:2px; }
+  .risk-card { background:white; border:1px solid var(--border); border-radius:12px; padding:14px 18px; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:120px; }
+  .risk-ring { width:44px; height:44px; border-radius:50%; border:3px solid var(--error); display:flex; align-items:center; justify-content:center; font-family:'Poppins',sans-serif; font-weight:700; font-size:16px; color:var(--error); margin-bottom:4px; }
+  .risk-card.low .risk-ring { border-color:var(--success); color:var(--success); }
+  .risk-card .rt { font-size:11px; font-weight:700; color:var(--error); }
+  .risk-card.low .rt { color:var(--success); }
+  .risk-card .rs { font-size:9.5px; color:var(--slate-gray); }
+
+  .assign-row { display:flex; align-items:center; gap:8px; }
+  .assign-select { border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-size:12px; font-weight:600; background:white; color:var(--midnight-navy); }
+
+  /* Evidencia: verificación + señales de riesgo */
+  .verif-row { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px dashed var(--border); font-size:12.5px; }
+  .verif-row:last-child { border-bottom:none; }
+  .verif-row .vk { color:var(--slate-gray); }
+  .verif-row .vv { font-weight:600; color:var(--midnight-navy); }
+  .verif-row .vv.mismatch { color:var(--error); }
+  .verif-row .vv.ok { color:var(--success); }
+
+  .risk-signal { border-left:3px solid var(--error); background:#FEF2F2; border-radius:0 8px 8px 0; padding:9px 12px; margin-bottom:8px; }
+  .risk-signal .rs-top { display:flex; justify-content:space-between; align-items:center; }
+  .risk-signal .rs-title { font-size:12.5px; font-weight:600; color:#991B1B; }
+  .risk-signal .rs-score { font-size:12px; font-weight:700; color:#991B1B; }
+  .risk-signal .rs-desc { font-size:11.5px; color:#B91C1C; margin-top:2px; line-height:1.4; }
+
+  .photo-badge-grid { display:grid; grid-template-columns: repeat(4,1fr); gap:8px; }
+  .photo-badge-grid .pb { position:relative; border-radius:8px; overflow:hidden; cursor:pointer; }
+  .photo-badge-grid .pb img { width:100%; aspect-ratio:1; object-fit:cover; display:block; }
+  .photo-badge-grid .pb .cnt { position:absolute; top:5px; right:5px; background:var(--error); color:white; font-size:9.5px; font-weight:700; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .photo-badge-grid .pb .plabel { position:absolute; bottom:0; left:0; right:0; background:rgba(13,27,42,.7); color:white; font-size:9px; text-align:center; padding:3px; }
+
+  /* Severidad de pieza (reemplaza costo) */
+  .sev-tag { font-size:9.5px; font-weight:700; padding:2px 8px; border-radius:10px; }
+  .sev-tag.replace { background:#FEF2F2; color:#991B1B; }
+  .sev-tag.repair { background:#FFF7ED; color:#92400E; }
+
+  /* Rechazo */
+  .reject-panel { display:none; background:#FEF2F2; border:1px solid #FECACA; border-radius:10px; padding:14px; margin-top:10px; }
+  .reject-panel.show { display:block; }
+  .reject-panel .rp-title { font-size:12.5px; font-weight:600; color:#991B1B; margin-bottom:8px; }
+  .reject-chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .reject-chip { font-size:11px; padding:6px 12px; border-radius:20px; background:white; border:1px solid #FECACA; color:#991B1B; cursor:pointer; font-weight:600; }
+  .reject-chip.selected { background:#991B1B; color:white; border-color:#991B1B; }
+
+  /* Directorio de talleres */
+  .taller-card { border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px; display:flex; align-items:center; gap:12px; }
+  .taller-card.selected { border-color: var(--royal-purple); background:#FAF5FF; }
+  .taller-avatar { width:38px; height:38px; border-radius:9px; background:linear-gradient(135deg,var(--royal-purple),var(--magenta-pulse)); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:white; font-weight:700; font-size:12px; }
+  .taller-info { flex:1; min-width:0; }
+  .taller-info b { font-size:13px; color:var(--midnight-navy); }
+  .taller-meta { font-size:11px; color:var(--slate-gray); margin-top:2px; display:flex; gap:8px; flex-wrap:wrap; }
+  .taller-stars { color:#FCD34D; font-size:11px; }
+  .taller-tag { font-size:9.5px; font-weight:700; background:#F0FDF4; color:#166534; padding:2px 7px; border-radius:8px; }
+  .taller-tag.external { background:#EEF2FF; color:var(--royal-purple); }
+  .taller-actions { display:flex; gap:6px; flex-shrink:0; }
+  .taller-actions button, .taller-actions a { width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:white; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .taller-actions svg { width:15px; height:15px; }
+  .add-taller-btn { width:100%; border:1.5px dashed var(--border); background:none; border-radius:10px; padding:10px; font-size:12.5px; font-weight:600; color:var(--slate-gray); cursor:pointer; margin-top:4px; }
+
+  /* Comparación emisión vs siniestro */
+  .compare-summary { background: linear-gradient(135deg, var(--midnight-navy), #1B2F45); color:white; border-radius:12px; padding:16px; margin-bottom:16px; }
+  .compare-summary .lbl { font-size:10.5px; color:#9CA9BC; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+  .compare-summary .big { font-family:'Poppins',sans-serif; font-size:16px; font-weight:600; line-height:1.4; }
+  .compare-summary .note { font-size:11.5px; color:#B9C2CF; margin-top:6px; }
+  .compare-demo-toggle { display:flex; justify-content:center; margin-bottom:14px; }
+  .compare-demo-toggle button { font-size:11px; color:var(--royal-purple); background:#F4ECFE; border:none; border-radius:20px; padding:6px 14px; cursor:pointer; font-weight:600; }
+
+  .compare-item { border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:12px; }
+  .compare-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .compare-angle { font-size:13px; font-weight:600; color:var(--midnight-navy); }
+  .compare-status { font-size:10.5px; font-weight:700; padding:4px 10px; border-radius:20px; cursor:pointer; border:none; }
+  .compare-status.preexistente { background:#FEF2F2; color:#991B1B; }
+  .compare-status.nuevo { background:#F0FDF4; color:#166534; }
+  .compare-images { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+  .compare-col .cc-label { font-size:9.5px; color:var(--slate-gray); text-align:center; margin-bottom:4px; font-weight:600; }
+  .compare-col img { width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:8px; }
+  .compare-conf { font-size:10px; color:var(--slate-gray); margin-top:6px; text-align:right; }
+
+  .cov-tag { font-size:9px; font-weight:700; padding:2px 7px; border-radius:9px; margin-left:4px; }
+  .cov-tag.covered { background:#F0FDF4; color:#166534; }
+  .cov-tag.notcovered { background:#FEF2F2; color:#991B1B; }
+  .cov-override { font-size:10px; color:var(--royal-purple); font-weight:600; cursor:pointer; text-decoration:underline; margin-top:4px; }
+
+  .empty-compare { text-align:center; padding:30px 12px; }
+  .empty-compare svg { width:34px; height:34px; color:#CBD5E1; margin-bottom:10px; }
+  .empty-compare p { font-size:12.5px; color:var(--slate-gray); line-height:1.5; }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+  <div class="sidebar" id="sidebar">
+    <div class="brand">
+      <img src="data:image/png;base64,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" alt="HenkanCX">
+      <span>Snnapi Siniestros</span>
+    </div>
+    <div class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Todos los siniestros <span class="nav-count">18</span>
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      En revisión <span class="nav-count">5</span>
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      En el taller <span class="nav-count">7</span>
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+      Cerrados <span class="nav-count">6</span>
+    </div>
+    <div class="sidebar-footer">
+      <div class="avatar-sm">CR</div>
+      <div class="who"><b>Carlos Rondón</b><span>Perito · XXX Seguros</span></div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="hamburger" onclick="openSidebar()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D1B2A" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </div>
+      <h1 id="topbar-title">Siniestros</h1>
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input placeholder="Buscar por expediente, asegurado o placa">
+      </div>
+      <div class="deadline-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        3 casos vencen en menos de 24h
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ===== VISTA LISTA ===== -->
+      <div class="view active" id="view-list">
+
+        <div class="kpi-row">
+          <div class="kpi-card"><div class="num">18</div><div class="lbl">Siniestros activos este mes</div></div>
+          <div class="kpi-card"><div class="num">5</div><div class="lbl">Pendientes de revisión</div></div>
+          <div class="kpi-card"><div class="num">3</div><div class="lbl">Por vencer plazo (5 días)</div></div>
+          <div class="kpi-card"><div class="num">82%</div><div class="lbl">Resueltos solo con fotos</div></div>
+        </div>
+
+        <div class="filters">
+          <div class="filter-chip active">Todos</div>
+          <div class="filter-chip">En revisión</div>
+          <div class="filter-chip">Esperando videollamada</div>
+          <div class="filter-chip">En el taller</div>
+          <div class="filter-chip">Cerrados</div>
+        </div>
+
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr><th>Expediente</th><th>Asegurado</th><th>Vehículo</th><th>Tipo</th><th>Asignado a</th><th>Estado</th><th>Plazo</th></tr>
+            </thead>
+            <tbody>
+              <tr class="row-click" onclick="openDetail()">
+                <td><b>SIN-2026-04821</b><div class="cell-sub">Recibido 10 ago</div></td>
+                <td>María José Fuentes</td>
+                <td>Toyota Corolla 2022<div class="cell-sub">AB123CD</div></td>
+                <td>Colisión c/ objeto</td>
+                <td>Carlos Rondón</td>
+                <td><span class="badge taller">En el taller</span></td>
+                <td><span class="deadline-flag">—</span></td>
+              </tr>
+              <tr class="row-click" onclick="openDetail()">
+                <td><b>SIN-2026-04822</b><div class="cell-sub">Recibido 13 ago</div></td>
+                <td>Jesús Peraza</td>
+                <td>Chevrolet Aveo 2019<div class="cell-sub">GH552L</div></td>
+                <td>Colisión con vehículo</td>
+                <td>Yelitza Marín</td>
+                <td><span class="badge review">En revisión</span></td>
+                <td><span class="deadline-flag">Vence en 14h</span></td>
+              </tr>
+              <tr class="row-click" onclick="openDetail()">
+                <td><b>SIN-2026-04819</b><div class="cell-sub">Recibido 9 ago</div></td>
+                <td>Andrea Salcedo</td>
+                <td>Ford Explorer 2021<div class="cell-sub">JK901M</div></td>
+                <td>Daño por terceros</td>
+                <td>— Sin asignar —</td>
+                <td><span class="badge wait">Esperando videollamada</span></td>
+                <td><span class="deadline-flag">Vence en 22h</span></td>
+              </tr>
+              <tr class="row-click" onclick="openDetail()">
+                <td><b>SIN-2026-04810</b><div class="cell-sub">Recibido 5 ago</div></td>
+                <td>Luis Marcano</td>
+                <td>Kia Rio 2020<div class="cell-sub">PL330N</div></td>
+                <td>Choque múltiple</td>
+                <td>Pedro Guzmán</td>
+                <td><span class="badge closed">Cerrado</span></td>
+                <td>—</td>
+              </tr>
+              <tr class="row-click" onclick="openDetail()">
+                <td><b>SIN-2026-04805</b><div class="cell-sub">Recibido 4 ago</div></td>
+                <td>Karina Blanco</td>
+                <td>Hyundai Tucson 2023<div class="cell-sub">RT220B</div></td>
+                <td>Robo parcial</td>
+                <td>Carlos Rondón</td>
+                <td><span class="badge closed">Cerrado</span></td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== VISTA DETALLE ===== -->
+      <div class="view" id="view-detail">
+        <div class="detail-header">
+          <div class="back-btn2" onclick="backToList()"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0D1B2A" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div>
+          <div>
+            <h2>Expediente SIN-2026-04821</h2>
+            <div class="sub">Recibido 10 ago, 2026</div>
+          </div>
+          <span class="badge taller" style="margin-left:auto;">En el taller</span>
+          <div class="assign-row">
+            <span style="font-size:11.5px; color:var(--slate-gray);">Asignado a</span>
+            <select class="assign-select">
+              <option>Carlos Rondón</option>
+              <option>Yelitza Marín</option>
+              <option>Pedro Guzmán</option>
+              <option>— Sin asignar —</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="top-strip">
+          <div class="strip-card">
+            <div class="st-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17h14M6 17a2 2 0 100 4 2 2 0 000-4zm12 0a2 2 0 100 4 2 2 0 000-4zM5 17l1.5-6.5A2 2 0 018.4 9h7.2a2 2 0 011.9 1.5L19 17M3 17h18"/></svg> Vehículo</div>
+            <div class="st-main">Toyota Corolla 2022</div>
+            <div class="st-sub">Gris · Placa AB123CD</div>
+          </div>
+          <div class="strip-card">
+            <div class="st-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Asegurado</div>
+            <div class="st-main">María José Fuentes</div>
+            <div class="st-sub">XXX Seguros</div>
+          </div>
+          <div class="strip-card">
+            <div class="st-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg> Póliza</div>
+            <div class="st-main">ESC-AU-88214</div>
+            <div class="st-sub">Todo Riesgo · vence 02/2027</div>
+          </div>
+          <div class="risk-card">
+            <div class="risk-ring">2</div>
+            <div class="rt">Riesgo medio</div>
+            <div class="rs">Revisar señales</div>
+          </div>
+        </div>
+
+        <div class="detail-grid">
+
+          <!-- Columna izquierda: tabs -->
+          <div>
+            <div class="card">
+              <div class="tabs">
+                <div class="tab-btn active" onclick="showTab('t-resumen', this)">Resumen</div>
+                <div class="tab-btn" onclick="showTab('t-evidencia', this)">Evidencia</div>
+                <div class="tab-btn" onclick="showTab('t-ia', this)">Informe IA</div>
+                <div class="tab-btn" onclick="showTab('t-comparacion', this)">Comparación</div>
+                <div class="tab-btn" onclick="showTab('t-taller', this)">Taller</div>
+              </div>
+
+              <!-- TAB RESUMEN -->
+              <div class="tab-pane active" id="t-resumen">
+                <div class="info-grid">
+                  <div class="info-item"><div class="k">Fecha del siniestro</div><div class="v">10/08/2026 · 2:30 pm</div></div>
+                  <div class="info-item"><div class="k">Tipo</div><div class="v">Colisión contra objeto</div></div>
+                  <div class="info-item"><div class="k">Ubicación</div><div class="v">Av. Fco. de Miranda, Chacao</div></div>
+                  <div class="info-item"><div class="k">Lesionados</div><div class="v">No</div></div>
+                  <div class="info-item"><div class="k">Terceros involucrados</div><div class="v">No</div></div>
+                  <div class="info-item"><div class="k">Vehículo conducible</div><div class="v">Sí</div></div>
+                  <div class="desc-box">"Al frenar bruscamente, el vehículo derrapó y golpeó un poste de alumbrado en el lado derecho."</div>
+                </div>
+              </div>
+
+              <!-- TAB EVIDENCIA -->
+              <div class="tab-pane" id="t-evidencia">
+                <div class="gallery-group">
+                  <div class="gt">Documentos</div>
+                  <div class="doc-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Cédula de identidad</div>
+                  <div class="doc-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Informe de tránsito</div>
+                </div>
+
+                <div class="gallery-group">
+                  <div class="gt">Fotos del vehículo — análisis de IA</div>
+                  <div class="photo-badge-grid">
+                    <div class="pb"><img src="https://loremflickr.com/220/220/car,front/all?lock=201"><div class="cnt">2</div><div class="plabel">Frontal</div></div>
+                    <div class="pb"><img src="https://loremflickr.com/220/220/car,side/all?lock=203"><div class="cnt">1</div><div class="plabel">Lateral izq.</div></div>
+                    <div class="pb"><img src="https://loremflickr.com/220/220/car,rear/all?lock=202"><div class="plabel">Trasera</div></div>
+                    <div class="pb"><img src="https://loremflickr.com/220/220/sedan/all?lock=204"><div class="plabel">Lateral der.</div></div>
+                  </div>
+                </div>
+
+                <div class="gallery-group">
+                  <div class="gt">Fotos de daños exteriores</div>
+                  <div class="photo-badge-grid">
+                    <div class="pb"><img src="https://loremflickr.com/220/220/car,damage/all?lock=205"><div class="cnt">1</div><div class="plabel">Daño 1</div></div>
+                    <div class="pb"><img src="https://loremflickr.com/220/220/car,bumper/all?lock=206"><div class="cnt">1</div><div class="plabel">Daño 2</div></div>
+                    <div class="pb"><img src="https://loremflickr.com/220/220/car,scratch/all?lock=207"><div class="plabel">Daño 3</div></div>
+                  </div>
+                </div>
+
+                <div class="card-title" style="margin-top:18px;">👁 Verificación de identidad <span style="font-size:10px; font-weight:500; color:var(--slate-gray);">OCR · Capa 2</span></div>
+                <div class="verif-row"><span class="vk">Odómetro</span><span class="vv">59.913 km</span></div>
+                <div class="verif-row"><span class="vk">Placa (foto vs. póliza)</span><span class="vv mismatch">✕ CL1081 declarado, AB123CD en póliza</span></div>
+                <div class="verif-row"><span class="vk">VIN</span><span class="vv ok">✓ Coincide con póliza</span></div>
+
+                <div class="card-title" style="margin-top:18px;">⚠️ Señales de riesgo <span style="font-size:10px; font-weight:700; color:var(--error);">2 señales</span></div>
+                <div class="risk-signal">
+                  <div class="rs-top"><span class="rs-title">Placa no coincide</span><span class="rs-score">0.94</span></div>
+                  <div class="rs-desc">La placa detectada en la foto frontal ("CL1081") no coincide con la registrada en la póliza (AB123CD).</div>
+                </div>
+                <div class="risk-signal">
+                  <div class="rs-top"><span class="rs-title">Inconsistencia de metadata</span><span class="rs-score">0.67</span></div>
+                  <div class="rs-desc">La fecha de la foto no coincide con la fecha declarada del accidente.</div>
+                </div>
+              </div>
+
+              <!-- TAB INFORME IA -->
+              <div class="tab-pane" id="t-ia">
+                <div class="ai-summary">
+                  <div class="lbl">Estimado preliminar del motor de IA</div>
+                  <div class="big">3 piezas sugeridas</div>
+                  <div class="note">Este informe es aproximado y no constituye una cotización. Ajusta lo que consideres necesario.</div>
+                </div>
+
+                <div class="part-item">
+                  <div class="part-top">
+                    <div><div class="part-name">Parachoques delantero <span class="sev-tag replace">Reemplazo</span><span class="cov-tag covered">🟢 Nuevo</span></div><div class="part-conf">Confianza del modelo: 91%</div></div>
+                    <div class="part-toggle">
+                      <button class="on-include" onclick="setPart(this,true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg></button>
+                      <button onclick="setPart(this,false)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                    </div>
+                  </div>
+                  <div class="confidence-bar"><div class="fill" style="width:91%;"></div></div>
+                  <div class="part-src">Detectado por IA · comparado contra inspección de emisión</div>
+                </div>
+
+                <div class="part-item">
+                  <div class="part-top">
+                    <div><div class="part-name">Faro delantero derecho <span class="sev-tag repair">Reparable</span><span class="cov-tag covered">🟢 Nuevo</span></div><div class="part-conf">Confianza del modelo: 84%</div></div>
+                    <div class="part-toggle">
+                      <button class="on-include" onclick="setPart(this,true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg></button>
+                      <button onclick="setPart(this,false)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                    </div>
+                  </div>
+                  <div class="confidence-bar"><div class="fill" style="width:84%;"></div></div>
+                  <div class="part-src">Detectado por IA · comparado contra inspección de emisión</div>
+                </div>
+
+                <div class="part-item excluded" id="part-guardabarros">
+                  <div class="part-top">
+                    <div><div class="part-name">Guardabarros derecho <span class="sev-tag repair">Reparable</span><span class="cov-tag notcovered">🔴 Preexistente</span></div><div class="part-conf">Confianza del modelo: 58%</div></div>
+                    <div class="part-toggle">
+                      <button onclick="setPart(this,true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg></button>
+                      <button class="on-exclude" onclick="setPart(this,false)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                    </div>
+                  </div>
+                  <div class="confidence-bar"><div class="fill" style="width:58%;"></div></div>
+                  <div class="part-src">Ya aparecía en la inspección de emisión (14/03/2026) — descartado por el perito</div>
+                  <div class="cov-override" onclick="alert('Marcado como agravado por este accidente: ahora se incluye en el informe.')">¿Se agravó con este accidente? Incluir de todas formas</div>
+                </div>
+
+                <button class="add-part-btn" onclick="addManualPart()">+ Agregar pieza no detectada por la IA</button>
+              </div>
+
+              <!-- TAB COMPARACIÓN -->
+              <div class="tab-pane" id="t-comparacion">
+                <div class="compare-demo-toggle">
+                  <button onclick="toggleCompareEmpty()">🔁 Simular: sin inspección de emisión disponible (solo demo)</button>
+                </div>
+
+                <div id="compare-content">
+                  <div class="compare-summary">
+                    <div class="lbl">Comparación con inspección de emisión de póliza</div>
+                    <div class="big">3 de 4 daños detectados son nuevos. 1 (guardabarros derecho) ya aparecía en la inspección de emisión.</div>
+                    <div class="note">Inspección de emisión: 14/03/2026 · Snnapi Pólizas · Este siniestro: 10/08/2026</div>
+                  </div>
+
+                  <div class="compare-item">
+                    <div class="compare-head">
+                      <div class="compare-angle">Frontal</div>
+                      <button class="compare-status nuevo" onclick="toggleCompareStatus(this)">Nuevo</button>
+                    </div>
+                    <div class="compare-images">
+                      <div class="compare-col"><div class="cc-label">Emisión · 14 mar 2026</div><img src="https://loremflickr.com/220/165/car,front/all?lock=301"></div>
+                      <div class="compare-col"><div class="cc-label">Siniestro · 10 ago 2026</div><img src="https://loremflickr.com/220/165/car,damage/all?lock=205"></div>
+                    </div>
+                    <div class="compare-conf">Confianza de la comparación: 93%</div>
+                  </div>
+
+                  <div class="compare-item">
+                    <div class="compare-head">
+                      <div class="compare-angle">Lateral derecho — guardabarros</div>
+                      <button class="compare-status preexistente" onclick="toggleCompareStatus(this)">Preexistente</button>
+                    </div>
+                    <div class="compare-images">
+                      <div class="compare-col"><div class="cc-label">Emisión · 14 mar 2026</div><img src="https://loremflickr.com/220/165/car,scratch/all?lock=302"></div>
+                      <div class="compare-col"><div class="cc-label">Siniestro · 10 ago 2026</div><img src="https://loremflickr.com/220/165/car,bumper/all?lock=206"></div>
+                    </div>
+                    <div class="compare-conf">Confianza de la comparación: 87% · misma abolladura visible en ambas fotos</div>
+                  </div>
+
+                  <div class="compare-item">
+                    <div class="compare-head">
+                      <div class="compare-angle">Trasera</div>
+                      <button class="compare-status nuevo" onclick="toggleCompareStatus(this)">Nuevo</button>
+                    </div>
+                    <div class="compare-images">
+                      <div class="compare-col"><div class="cc-label">Emisión · 14 mar 2026</div><img src="https://loremflickr.com/220/165/car,rear/all?lock=202"></div>
+                      <div class="compare-col"><div class="cc-label">Siniestro · 10 ago 2026</div><img src="https://loremflickr.com/220/165/car,rear/all?lock=303"></div>
+                    </div>
+                    <div class="compare-conf">Confianza de la comparación: 96%</div>
+                  </div>
+
+                  <div style="font-size:11px; color:var(--slate-gray); line-height:1.5; margin-top:4px;">Esto es una sugerencia de la IA, no una decisión automática — el perito puede corregir cualquier estado (ej. si un daño preexistente se agravó con este accidente). El cruce con el Informe de piezas se actualiza automáticamente.</div>
+                </div>
+
+                <div class="empty-compare hidden" id="compare-empty">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+                  <p>No hay inspección de emisión disponible para este vehículo.<br>Evalúa este caso sin esta referencia.</p>
+                </div>
+              </div>
+
+              <!-- TAB TALLER -->
+              <div class="tab-pane" id="t-taller">
+                <div class="gt" style="margin-bottom:10px;">Talleres sugeridos</div>
+
+                <div class="taller-card selected">
+                  <div class="taller-avatar">AC</div>
+                  <div class="taller-info">
+                    <b>Automotriz Chacao</b> <span class="taller-tag">Convenio</span>
+                    <div class="taller-meta"><span class="taller-stars">★★★★★</span> 4.8 (112) · Pintura y latonería · Resp. ~15 min</div>
+                  </div>
+                  <div class="taller-actions">
+                    <a href="https://wa.me/584121234567" target="_blank" title="WhatsApp"><svg viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2"><path d="M17.6 6.3A8.9 8.9 0 0012 4a8.9 8.9 0 00-7.7 13.4L3 21l3.7-1.3A8.9 8.9 0 0012 20a8.9 8.9 0 006.3-15.2"/></svg></a>
+                    <button title="Llamar"><svg viewBox="0 0 24 24" fill="none" stroke="#0D1B2A" stroke-width="2"><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3-8.7A2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.3 1.8.6 2.7a2 2 0 01-.5 2.1L8 9.7a16 16 0 006 6l1.2-1.2a2 2 0 012.1-.5c.9.3 1.8.5 2.7.6a2 2 0 011.8 2z"/></svg></button>
+                  </div>
+                </div>
+
+                <div class="taller-card">
+                  <div class="taller-avatar">TC</div>
+                  <div class="taller-info">
+                    <b>Taller Central La Urbina</b> <span class="taller-tag">Convenio</span>
+                    <div class="taller-meta"><span class="taller-stars">★★★★☆</span> 4.3 (67) · Mecánica general · Resp. ~40 min</div>
+                  </div>
+                  <div class="taller-actions">
+                    <a href="https://wa.me/584141112233" target="_blank" title="WhatsApp"><svg viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2"><path d="M17.6 6.3A8.9 8.9 0 0012 4a8.9 8.9 0 00-7.7 13.4L3 21l3.7-1.3A8.9 8.9 0 0012 20a8.9 8.9 0 006.3-15.2"/></svg></a>
+                    <button title="Llamar"><svg viewBox="0 0 24 24" fill="none" stroke="#0D1B2A" stroke-width="2"><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3-8.7A2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.3 1.8.6 2.7a2 2 0 01-.5 2.1L8 9.7a16 16 0 006 6l1.2-1.2a2 2 0 012.1-.5c.9.3 1.8.5 2.7.6a2 2 0 011.8 2z"/></svg></button>
+                  </div>
+                </div>
+
+                <div class="taller-card">
+                  <div class="taller-avatar">SR</div>
+                  <div class="taller-info">
+                    <b>Servicio Rápido Los Ruices</b> <span class="taller-tag external">Externo</span>
+                    <div class="taller-meta">Sin calificación aún · Sugerido por el perito</div>
+                  </div>
+                  <div class="taller-actions">
+                    <a href="https://wa.me/584241234567" target="_blank" title="WhatsApp"><svg viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2"><path d="M17.6 6.3A8.9 8.9 0 0012 4a8.9 8.9 0 00-7.7 13.4L3 21l3.7-1.3A8.9 8.9 0 0012 20a8.9 8.9 0 006.3-15.2"/></svg></a>
+                    <button title="Llamar"><svg viewBox="0 0 24 24" fill="none" stroke="#0D1B2A" stroke-width="2"><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3-8.7A2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.3 1.8.6 2.7a2 2 0 01-.5 2.1L8 9.7a16 16 0 006 6l1.2-1.2a2 2 0 012.1-.5c.9.3 1.8.5 2.7.6a2 2 0 011.8 2z"/></svg></button>
+                  </div>
+                </div>
+
+                <button class="add-taller-btn">+ Agregar taller externo (no convenio)</button>
+
+                <div class="gallery-group" style="margin-top:18px;">
+                  <div class="gt">Fotos de reparación subidas por el taller</div>
+                  <div class="gallery">
+                    <img src="https://loremflickr.com/200/200/car,front/all?lock=101">
+                    <img src="https://loremflickr.com/200/200/car,paint/all?lock=106">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="action-bar" style="flex-direction:column; align-items:stretch;">
+              <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <button class="btn btn-ghost">📞 Solicitar videollamada</button>
+                <button class="btn btn-warn">🚗 Programar inspección física</button>
+                <button class="btn btn-ghost" style="border-color:#FECACA; color:#991B1B;" onclick="toggleReject()">✕ Rechazar</button>
+                <button class="btn btn-primary2">✓ Aprobar y autorizar reparación</button>
+              </div>
+              <div class="reject-panel" id="reject-panel">
+                <div class="rp-title">Motivo del rechazo (obligatorio)</div>
+                <div class="reject-chips">
+                  <div class="reject-chip" onclick="selRejectReason(this)">Posible fraude</div>
+                  <div class="reject-chip" onclick="selRejectReason(this)">Cobertura no aplica</div>
+                  <div class="reject-chip" onclick="selRejectReason(this)">Evidencia insuficiente</div>
+                  <div class="reject-chip" onclick="selRejectReason(this)">Fuera de plazo</div>
+                  <div class="reject-chip" onclick="selRejectReason(this)">Otro</div>
+                </div>
+                <button class="btn" style="background:#991B1B; color:white; width:100%;" onclick="alert('Reclamo rechazado. Se notificó al asegurado por el Claim Tracker.')">Confirmar rechazo</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Columna derecha: historial -->
+          <div>
+            <div class="card">
+              <div class="card-title">Historial del caso</div>
+              <div class="timeline-mini">
+                <div class="tm-item"><div class="tm-dot"></div><div><div class="tm-title">Inspección recibida</div><div class="tm-date">10 ago, 3:40 pm</div></div></div>
+                <div class="tm-item"><div class="tm-dot"></div><div><div class="tm-title">Revisada por Carlos Rondón</div><div class="tm-date">11 ago, 9:02 am</div></div></div>
+                <div class="tm-item"><div class="tm-dot"></div><div><div class="tm-title">Reparación autorizada</div><div class="tm-date">11 ago, 4:20 pm</div></div></div>
+                <div class="tm-item"><div class="tm-dot"></div><div><div class="tm-title">Vehículo en el taller</div><div class="tm-date">Desde 12 ago</div></div></div>
+                <div class="tm-item pending"><div class="tm-dot"></div><div><div class="tm-title">Reparación completada</div><div class="tm-date">Pendiente</div></div></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">Póliza</div>
+              <div class="info-grid">
+                <div class="info-item"><div class="k">Número</div><div class="v">ESC-AU-88214</div></div>
+                <div class="info-item"><div class="k">Cobertura</div><div class="v">Todo Riesgo</div></div>
+                <div class="info-item"><div class="k">Vigencia</div><div class="v">03/2026 – 03/2027</div></div>
+                <div class="info-item"><div class="k">Deducible</div><div class="v">5% del daño</div></div>
+                <div class="info-item"><div class="k">Suma asegurada</div><div class="v">$18,500</div></div>
+                <div class="info-item"><div class="k">Siniestros previos</div><div class="v">1 (hace 8 meses)</div></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  function openDetail() {
+    document.getElementById('view-list').classList.remove('active');
+    document.getElementById('view-detail').classList.add('active');
+    document.getElementById('topbar-title').textContent = 'SIN-2026-04821';
+  }
+  function backToList() {
+    document.getElementById('view-detail').classList.remove('active');
+    document.getElementById('view-list').classList.add('active');
+    document.getElementById('topbar-title').textContent = 'Siniestros';
+  }
+  function showTab(id, el) {
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    el.classList.add('active');
+  }
+  function setPart(btn, include) {
+    const item = btn.closest('.part-item');
+    item.querySelectorAll('.part-toggle button').forEach(b => { b.classList.remove('on-include','on-exclude'); });
+    if (include) { btn.classList.add('on-include'); item.classList.remove('excluded'); }
+    else { btn.classList.add('on-exclude'); item.classList.add('excluded'); }
+  }
+  function addManualPart() {
+    const container = event.target;
+    const div = document.createElement('div');
+    div.className = 'part-item';
+    div.innerHTML = '<div class="part-top"><div><div class="part-name">Nueva pieza</div><div class="part-conf">Agregada manualmente</div></div><div class="part-toggle"><button class="on-include"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg></button></div></div><div class="part-src manual">Agregada por el perito</div>';
+    container.parentElement.insertBefore(div, container);
+  }
+  function openSidebar() { document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('show'); }
+  function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.remove('show'); }
+  function toggleReject() { document.getElementById('reject-panel').classList.toggle('show'); }
+  function selRejectReason(el) {
+    el.parentElement.querySelectorAll('.reject-chip').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+  function toggleCompareStatus(btn) {
+    const isNuevo = btn.classList.contains('nuevo');
+    btn.classList.toggle('nuevo', !isNuevo);
+    btn.classList.toggle('preexistente', isNuevo);
+    btn.textContent = isNuevo ? 'Preexistente' : 'Nuevo';
+  }
+  let compareEmpty = false;
+  function toggleCompareEmpty() {
+    compareEmpty = !compareEmpty;
+    document.getElementById('compare-content').classList.toggle('hidden', compareEmpty);
+    document.getElementById('compare-empty').classList.toggle('hidden', !compareEmpty);
+  }
+</script>
+
+</body>
+</html>
